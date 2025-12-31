@@ -24,7 +24,7 @@ train_df, val_df = create_validation_split(df, TARGET_COL)
 X_train = train_df["text"].values
 X_val = val_df["text"].values
 
-# Scaled Log-transform target
+# Log-transform target
 y_train = np.log1p(train_df[TARGET_COL].values) 
 y_val = val_df[TARGET_COL].values  # keep original for SMAPE
 
