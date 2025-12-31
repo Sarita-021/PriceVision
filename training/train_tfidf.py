@@ -25,7 +25,7 @@ X_train = train_df["text"].values
 X_val = val_df["text"].values
 
 # Scaled Log-transform target
-y_train = np.log1p(train_df[TARGET_COL].values) / np.log1p(train_df[TARGET_COL].values). mean()
+y_train = np.log1p(train_df[TARGET_COL].values) 
 y_val = val_df[TARGET_COL].values  # keep original for SMAPE
 
 # Build model
@@ -40,11 +40,33 @@ model.fit(X_train, y_train)
 
 # Predict
 val_pred_log = model.predict(X_val)
-val_pred = np.expm1(val_pred_log)
+val_pred = np.expm1(model.predict(X_val)) 
 
 # Sanity Check 1: Negative predictions
 num_negative = (val_pred < 0).sum()
 print(f"Negative predictions: {num_negative}")
+
+# SMAPE safety clipping
+low = np.percentile(train_df[TARGET_COL].values, 1)
+high = np.percentile(train_df[TARGET_COL].values, 99)
+
+val_pred = np.clip(val_pred, low, high)
+
+# Post-prediction bias correction
+bucket_medians = train_df.groupby("price_bucket")[TARGET_COL].median()
+
+def bias_correct(row):
+    b = row["price_bucket"]
+    if b == 0:
+        return row["pred"] * 0.85   # reduce over-prediction
+    elif b == 4:
+        return row["pred"] * 1.15   # increase under-prediction
+    return row["pred"]
+
+val_df["pred"] = val_pred
+val_df["pred"] = val_df.apply(bias_correct, axis=1)
+val_pred = val_df["pred"].values
+
 
 # Evaluate
 score = smape(y_val, val_pred)
